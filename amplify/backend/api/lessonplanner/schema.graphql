@@ -1,0 +1,8 @@
+type Plan @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  title: String!
+  dateRange: String!
+  fields: AWSJSON! # Günlük aktiviteleri JSON formatında saklayacağız
+  docxUrl: String
+  createdAt: AWSDateTime
+}

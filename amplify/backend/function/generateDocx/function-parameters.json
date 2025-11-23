@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "storage": {
+      "lessonplannerstorage": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ]
+    }
+  },
+  "lambdaLayers": [],
+  "environmentVariableList": [
+    {
+      "cloudFormationParameterName": "templateKey",
+      "environmentVariableName": "TEMPLATE_KEY"
+    },
+    {
+      "cloudFormationParameterName": "outputDir",
+      "environmentVariableName": "OUTPUT_DIR"
+    }
+  ]
+}

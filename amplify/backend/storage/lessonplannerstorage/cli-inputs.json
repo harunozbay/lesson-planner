@@ -1,0 +1,14 @@
+{
+  "resourceName": "lessonplannerstorage",
+  "policyUUID": "80f33a57",
+  "bucketName": "lessonplanner-files-harun-dev",
+  "storageAccess": "auth",
+  "guestAccess": [],
+  "authAccess": [
+    "CREATE_AND_UPDATE",
+    "READ",
+    "DELETE"
+  ],
+  "triggerFunction": "NONE",
+  "groupAccess": {}
+}
