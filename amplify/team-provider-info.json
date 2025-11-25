@@ -13,7 +13,8 @@
     },
     "categories": {
       "auth": {
-        "lessonplanner707e4e7b": {}
+        "lessonplanner707e4e7b": {},
+        "userPoolGroups": {}
       },
       "api": {
         "lessonplanner": {}
@@ -26,7 +27,7 @@
           "templateKey": "word_template_s3_path",
           "outputDir": "docx_output_dir",
           "deploymentBucketName": "amplify-lessonplanner-dev-5724c-deployment",
-          "s3Key": "amplify-builds/generateDocx-625251306b6d43384345-build.zip"
+          "s3Key": "amplify-builds/generateDocx-4b36454c784d43694770-build.zip"
         }
       }
     }
