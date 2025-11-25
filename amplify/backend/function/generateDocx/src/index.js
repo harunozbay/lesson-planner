@@ -28,11 +28,18 @@ export const handler = async (event) => {
     console.log("Incoming event:", event);
 
     // Body parse
-    const body =
-      typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+    let body;
+    if (event.arguments) {
+      // AppSync invocation
+      body = event.arguments;
+    } else {
+      // API Gateway or direct invocation
+      body =
+        typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+    }
 
     // Template info
-    const TEMPLATE_BUCKET = process.env.TEMPLATE_BUCKET;
+    const TEMPLATE_BUCKET = process.env.STORAGE_LESSONPLANNERSTORAGE_BUCKETNAME;
     const TEMPLATE_KEY = process.env.TEMPLATE_KEY;
 
     // 1. Template S3'ten indir
@@ -53,14 +60,24 @@ export const handler = async (event) => {
     });
 
     // 3. DOCX içine data bağlama
+    // sections ve fields JSON string olarak gelebilir (AppSync AWSJSON)
+    const sections =
+      typeof body.sections === "string"
+        ? JSON.parse(body.sections)
+        : body.sections;
+    const fields =
+      typeof body.fields === "string" ? JSON.parse(body.fields) : body.fields;
+
     doc.setData({
       hafta_no: body.hafta_no,
       tarih_araligi: body.tarih_araligi,
       kurum_adi: body.kurum_adi,
-      muzik_listesi: body.muzik_listesi.join(", "),
+      muzik_listesi: Array.isArray(body.muzik_listesi)
+        ? body.muzik_listesi.join(", ")
+        : body.muzik_listesi,
 
-      ...body.sections, // başlıklar
-      ...body.fields, // günlük içerikler
+      ...sections, // başlıklar
+      ...fields, // günlük içerikler
     });
 
     doc.render();
@@ -85,13 +102,23 @@ export const handler = async (event) => {
 
     const fileUrl = `https://${TEMPLATE_BUCKET}.s3.amazonaws.com/${outputKey}`;
 
+    const responseData = { url: fileUrl };
+
+    if (event.arguments) {
+      // AppSync response (Schema defines return type as String)
+      return JSON.stringify(responseData);
+    }
+
     return {
       statusCode: 200,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ url: fileUrl }),
+      body: JSON.stringify(responseData),
     };
   } catch (err) {
     console.error(err);
+    if (event.arguments) {
+      throw new Error(err.message);
+    }
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };

@@ -14,10 +14,6 @@ import { Amplify } from "aws-amplify";
 import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "./aws-exports";
 
-export const unstable_settings = {
-  anchor: "(tabs)",
-};
-
 // ← AWS Amplify config EN ÜSTE EKLENİR
 Amplify.configure(awsconfig);
 
@@ -31,7 +27,8 @@ export default function RootLayout() {
         const session = await fetchAuthSession();
 
         if (session?.tokens?.idToken) {
-          router.replace("/(tabs)");
+          // Auth başarılı ise ana sayfaya (index) yönlendir
+          router.replace("/");
         } else {
           router.replace("/(auth)/login");
         }
@@ -49,7 +46,8 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="index" options={{ title: "Projelerim" }} />
+        <Stack.Screen name="new-project" options={{ title: "Yeni Proje" }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen
           name="modal"

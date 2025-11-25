@@ -6,3 +6,18 @@ type Plan @model @auth(rules: [{ allow: owner }]) {
   docxUrl: String
   createdAt: AWSDateTime
 }
+
+type GeneratePlanResponse {
+  url: String
+}
+
+type Query {
+  generatePlan(
+    hafta_no: String
+    tarih_araligi: String
+    kurum_adi: String
+    muzik_listesi: [String]
+    sections: AWSJSON
+    fields: AWSJSON
+  ): String @function(name: "generateDocx-${env}")
+}
