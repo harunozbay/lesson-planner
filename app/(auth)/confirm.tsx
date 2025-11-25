@@ -1,19 +1,20 @@
 import { confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 
 export default function ConfirmScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+
+  const textColor = useThemeColor({}, "text");
+  const placeholderColor = useThemeColor({}, "icon");
 
   const handleConfirm = async () => {
     try {
@@ -48,13 +49,19 @@ export default function ConfirmScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Hesabı Doğrula</Text>
-      <Text style={styles.subtitle}>{email}</Text>
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Hesabı Doğrula
+      </ThemedText>
+      <ThemedText style={styles.subtitle}>{email}</ThemedText>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Doğrulama Kodu"
+        placeholderTextColor={placeholderColor}
         keyboardType="numeric"
         value={code}
         onChangeText={setCode}
@@ -65,9 +72,9 @@ export default function ConfirmScreen() {
         disabled={loading}
         onPress={handleConfirm}
       >
-        <Text style={styles.btnText}>
+        <ThemedText style={styles.btnText}>
           {loading ? "Doğrulanıyor..." : "Doğrula"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -75,34 +82,30 @@ export default function ConfirmScreen() {
         onPress={handleResend}
         disabled={resending}
       >
-        <Text style={styles.link}>
+        <ThemedText style={styles.link}>
           {resending ? "Gönderiliyor..." : "Kodu tekrar gönder"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-        <Text style={styles.smallLink}>Giriş ekranına dön</Text>
+        <ThemedText style={styles.smallLink}>Giriş ekranına dön</ThemedText>
       </TouchableOpacity>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
     textAlign: "center",
-    color: "#444",
     marginBottom: 20,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     padding: 12,
     marginVertical: 10,
     borderRadius: 8,
@@ -129,6 +132,5 @@ const styles = StyleSheet.create({
   smallLink: {
     marginTop: 8,
     textAlign: "center",
-    color: "#555",
   },
 });

@@ -1,17 +1,18 @@
 import { resetPassword } from "aws-amplify/auth";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const textColor = useThemeColor({}, "text");
+  const placeholderColor = useThemeColor({}, "icon");
 
   const handleReset = async () => {
     try {
@@ -35,15 +36,21 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Şifre Sıfırlama</Text>
-      <Text style={styles.subtitle}>
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Şifre Sıfırlama
+      </ThemedText>
+      <ThemedText style={styles.subtitle}>
         Email adresinizi girin, şifre sıfırlama kodu gönderilecek.
-      </Text>
+      </ThemedText>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Email"
+        placeholderTextColor={placeholderColor}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -55,35 +62,31 @@ export default function ForgotPasswordScreen() {
         disabled={loading}
         onPress={handleReset}
       >
-        <Text style={styles.btnText}>
+        <ThemedText style={styles.btnText}>
           {loading ? "Gönderiliyor..." : "Kod Gönder"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-        <Text style={styles.smallLink}>Giriş ekranına dön</Text>
+        <ThemedText style={styles.smallLink}>Giriş ekranına dön</ThemedText>
       </TouchableOpacity>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
     textAlign: "center",
-    color: "#444",
     marginBottom: 20,
     fontSize: 14,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     padding: 12,
     marginVertical: 10,
     borderRadius: 8,
@@ -104,6 +107,5 @@ const styles = StyleSheet.create({
   smallLink: {
     marginTop: 12,
     textAlign: "center",
-    color: "#555",
   },
 });

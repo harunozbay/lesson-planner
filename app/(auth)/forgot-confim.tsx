@@ -1,19 +1,20 @@
 import { confirmResetPassword } from "aws-amplify/auth";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 
 export default function ForgotConfirmScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const textColor = useThemeColor({}, "text");
+  const placeholderColor = useThemeColor({}, "icon");
 
   const handleConfirm = async () => {
     try {
@@ -36,21 +37,31 @@ export default function ForgotConfirmScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Yeni Şifre Belirle</Text>
-      <Text style={styles.subtitle}>{email}</Text>
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Yeni Şifre Belirle
+      </ThemedText>
+      <ThemedText style={styles.subtitle}>{email}</ThemedText>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Doğrulama Kodu"
+        placeholderTextColor={placeholderColor}
         keyboardType="numeric"
         value={code}
         onChangeText={setCode}
       />
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Yeni Şifre"
+        placeholderTextColor={placeholderColor}
         secureTextEntry
         value={newPassword}
         onChangeText={setNewPassword}
@@ -61,35 +72,31 @@ export default function ForgotConfirmScreen() {
         disabled={loading}
         onPress={handleConfirm}
       >
-        <Text style={styles.btnText}>
+        <ThemedText style={styles.btnText}>
           {loading ? "Kaydediliyor..." : "Şifreyi Güncelle"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-        <Text style={styles.smallLink}>Giriş ekranına dön</Text>
+        <ThemedText style={styles.smallLink}>Giriş ekranına dön</ThemedText>
       </TouchableOpacity>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
     textAlign: "center",
-    color: "#444",
     marginBottom: 20,
     fontSize: 14,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     padding: 12,
     marginVertical: 10,
     borderRadius: 8,
@@ -110,6 +117,5 @@ const styles = StyleSheet.create({
   smallLink: {
     marginTop: 12,
     textAlign: "center",
-    color: "#555",
   },
 });

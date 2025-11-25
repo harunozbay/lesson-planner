@@ -1,18 +1,19 @@
 import { signIn } from "aws-amplify/auth";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const textColor = useThemeColor({}, "text");
+  const placeholderColor = useThemeColor({}, "icon");
 
   const handleLogin = async () => {
     try {
@@ -31,12 +32,18 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Giriş Yap</Text>
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Giriş Yap
+      </ThemedText>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Email"
+        placeholderTextColor={placeholderColor}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -44,8 +51,12 @@ export default function LoginScreen() {
       />
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Şifre"
+        placeholderTextColor={placeholderColor}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -56,33 +67,30 @@ export default function LoginScreen() {
         disabled={loading}
         onPress={handleLogin}
       >
-        <Text style={styles.btnText}>
+        <ThemedText style={styles.btnText}>
           {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-        <Text style={styles.link}>Hesabın yok mu? Kaydol</Text>
+        <ThemedText style={styles.link}>Hesabın yok mu? Kaydol</ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/forgot" as any)}>
-        <Text style={styles.smallLink}>Şifremi unuttum</Text>
+        <ThemedText style={styles.smallLink}>Şifremi unuttum</ThemedText>
       </TouchableOpacity>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     padding: 12,
     marginVertical: 10,
     borderRadius: 8,
@@ -110,6 +118,5 @@ const styles = StyleSheet.create({
   smallLink: {
     marginTop: 8,
     textAlign: "center",
-    color: "#555",
   },
 });

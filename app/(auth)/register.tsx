@@ -1,19 +1,20 @@
 import { signUp } from "aws-amplify/auth";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const textColor = useThemeColor({}, "text");
+  const placeholderColor = useThemeColor({}, "icon");
 
   const handleRegister = async () => {
     if (password !== confirmPass) {
@@ -46,12 +47,18 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Kayıt Ol</Text>
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Kayıt Ol
+      </ThemedText>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Email"
+        placeholderTextColor={placeholderColor}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -59,16 +66,24 @@ export default function RegisterScreen() {
       />
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Şifre"
+        placeholderTextColor={placeholderColor}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { color: textColor, borderColor: placeholderColor },
+        ]}
         placeholder="Şifre Tekrar"
+        placeholderTextColor={placeholderColor}
         secureTextEntry
         value={confirmPass}
         onChangeText={setConfirmPass}
@@ -79,29 +94,28 @@ export default function RegisterScreen() {
         disabled={loading}
         onPress={handleRegister}
       >
-        <Text style={styles.btnText}>
+        <ThemedText style={styles.btnText}>
           {loading ? "Kaydediliyor..." : "Kayıt Ol"}
-        </Text>
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-        <Text style={styles.link}>Zaten hesabın var mı? Giriş Yap</Text>
+        <ThemedText style={styles.link}>
+          Zaten hesabın var mı? Giriş Yap
+        </ThemedText>
       </TouchableOpacity>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     padding: 12,
     marginVertical: 10,
     borderRadius: 8,
