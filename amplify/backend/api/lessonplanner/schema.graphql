@@ -19,5 +19,7 @@ type Query {
     muzik_listesi: [String]
     sections: AWSJSON
     fields: AWSJSON
-  ): String @function(name: "generateDocx-${env}")
+  ): String
+    @function(name: "generateDocx-${env}")
+    @auth(rules: [{ allow: private }])
 }

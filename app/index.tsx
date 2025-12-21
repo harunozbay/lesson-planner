@@ -3,12 +3,13 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { listPlans } from "@/src/graphql/queries";
+import { Ionicons } from "@expo/vector-icons";
 import { generateClient } from "aws-amplify/api";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 
-const client = generateClient();
+const client = generateClient({ authMode: "userPool" });
 
 export default function ProjectsScreen() {
   const [plans, setPlans] = useState<any[]>([]);
@@ -33,7 +34,10 @@ export default function ProjectsScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.itemContainer}>
+    <TouchableOpacity
+      style={styles.itemContainer}
+      onPress={() => router.push(`/edit-project?id=${item.id}`)}
+    >
       <View>
         <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
         <ThemedText style={styles.dateText}>{item.dateRange}</ThemedText>
@@ -61,7 +65,7 @@ export default function ProjectsScreen() {
         style={[styles.fab, { backgroundColor: tintColor }]}
         onPress={() => router.push("/new-project")}
       >
-        <IconSymbol name="plus" size={30} color="#fff" />
+        <Ionicons name="add" size={40} color="black" />
       </TouchableOpacity>
     </ThemedView>
   );

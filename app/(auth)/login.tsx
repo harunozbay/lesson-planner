@@ -22,7 +22,7 @@ export default function LoginScreen() {
       await signIn({ username: email, password });
 
       // Login başarılı → tabs ekranına yönlendiriyoruz
-      router.replace("/(tabs)");
+      router.replace("/");
     } catch (error) {
       console.log("Login error:", error);
       alert((error as Error).message || "Giriş yapılamadı");

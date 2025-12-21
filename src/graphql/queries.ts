@@ -44,3 +44,24 @@ export const listPlans = /* GraphQL */ `query ListPlans(
   }
 }
 ` as GeneratedQuery<APITypes.ListPlansQueryVariables, APITypes.ListPlansQuery>;
+export const generatePlan = /* GraphQL */ `query GeneratePlan(
+  $hafta_no: String
+  $tarih_araligi: String
+  $kurum_adi: String
+  $muzik_listesi: [String]
+  $sections: AWSJSON
+  $fields: AWSJSON
+) {
+  generatePlan(
+    hafta_no: $hafta_no
+    tarih_araligi: $tarih_araligi
+    kurum_adi: $kurum_adi
+    muzik_listesi: $muzik_listesi
+    sections: $sections
+    fields: $fields
+  )
+}
+` as GeneratedQuery<
+  APITypes.GeneratePlanQueryVariables,
+  APITypes.GeneratePlanQuery
+>;

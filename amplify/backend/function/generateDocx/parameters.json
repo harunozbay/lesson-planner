@@ -1,1 +1,4 @@
-{}
+{
+  "templateKey": "templates/lesson_planner_default_template.docx",
+  "outputDir": "plans"
+}

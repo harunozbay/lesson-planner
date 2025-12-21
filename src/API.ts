@@ -267,6 +267,19 @@ export type ListPlansQuery = {
   } | null,
 };
 
+export type GeneratePlanQueryVariables = {
+  hafta_no?: string | null,
+  tarih_araligi?: string | null,
+  kurum_adi?: string | null,
+  muzik_listesi?: Array< string | null > | null,
+  sections?: string | null,
+  fields?: string | null,
+};
+
+export type GeneratePlanQuery = {
+  generatePlan?: string | null,
+};
+
 export type OnCreatePlanSubscriptionVariables = {
   filter?: ModelSubscriptionPlanFilterInput | null,
   owner?: string | null,

@@ -2,12 +2,13 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Collapsible } from "@/components/ui/collapsible";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { createPlan } from "@/src/graphql/mutations";
-import { generatePlan } from "@/src/graphql/queries";
+import { deletePlan, updatePlan } from "@/src/graphql/mutations";
+import { generatePlan, getPlan } from "@/src/graphql/queries";
 import { generateClient } from "aws-amplify/api";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   ScrollView,
@@ -18,7 +19,9 @@ import {
 
 const client = generateClient({ authMode: "userPool" });
 
-export default function NewProjectScreen() {
+export default function EditProjectScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
   const [projeAdi, setProjeAdi] = useState("");
   const [haftaNo, setHaftaNo] = useState("");
   const [tarihAraligi, setTarihAraligi] = useState("");
@@ -49,8 +52,7 @@ export default function NewProjectScreen() {
     cuma: "Cuma",
   };
 
-  // Daily fields - her gün için 5 alan
-  const [days, setDays] = useState<Record<string, Record<string, string>>>({
+  const emptyDays: Record<string, Record<string, string>> = {
     pazartesi: {
       genel: "",
       kuran: "",
@@ -86,13 +88,68 @@ export default function NewProjectScreen() {
       degerler_egitimi: "",
       tamamlayici_kazanim: "",
     },
-  });
+  };
+
+  const [days, setDays] =
+    useState<Record<string, Record<string, string>>>(emptyDays);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
   const textColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "icon");
   const tintColor = useThemeColor({}, "tint");
+
+  useEffect(() => {
+    if (id) {
+      fetchPlan();
+    }
+  }, [id]);
+
+  const fetchPlan = async () => {
+    try {
+      setFetching(true);
+      const result: any = await client.graphql({
+        query: getPlan,
+        variables: { id },
+      });
+
+      const plan = result.data.getPlan;
+      if (plan) {
+        setProjeAdi(plan.title || "");
+        setTarihAraligi(plan.dateRange || "");
+
+        if (plan.fields) {
+          try {
+            const parsedFields = JSON.parse(plan.fields);
+            // Merge with empty days to ensure all fields exist
+            const mergedDays = { ...emptyDays };
+            for (const day of dayNames) {
+              if (parsedFields[day]) {
+                mergedDays[day] = { ...emptyDays[day], ...parsedFields[day] };
+              }
+            }
+            setDays(mergedDays);
+
+            // Extract extra fields if stored
+            if (parsedFields.haftaNo) setHaftaNo(parsedFields.haftaNo);
+            if (parsedFields.kurumAdi) setKurumAdi(parsedFields.kurumAdi);
+            if (parsedFields.muzikListesi)
+              setMuzikListesi(parsedFields.muzikListesi);
+          } catch (e) {
+            console.error("Error parsing fields:", e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching plan:", error);
+      Alert.alert("Hata", "Proje yüklenemedi.");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!projeAdi.trim()) {
@@ -103,24 +160,55 @@ export default function NewProjectScreen() {
     try {
       setSaving(true);
       await client.graphql({
-        query: createPlan,
+        query: updatePlan,
         variables: {
           input: {
+            id,
             title: projeAdi,
             dateRange: tarihAraligi,
-            fields: JSON.stringify(days),
-            docxUrl: null,
+            fields: JSON.stringify({
+              ...days,
+              haftaNo,
+              kurumAdi,
+              muzikListesi,
+            }),
           },
         },
       });
-      Alert.alert("Başarılı", "Proje kaydedildi.");
+      Alert.alert("Başarılı", "Proje güncellendi.");
       router.replace("/");
     } catch (error) {
-      console.error("Error saving plan:", error);
+      console.error("Error updating plan:", error);
       Alert.alert("Hata", (error as Error).message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert("Projeyi Sil", "Bu projeyi silmek istediğinize emin misiniz?", [
+      { text: "İptal", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setDeleting(true);
+            await client.graphql({
+              query: deletePlan,
+              variables: { input: { id } },
+            });
+            Alert.alert("Başarılı", "Proje silindi.");
+            router.replace("/");
+          } catch (error) {
+            console.error("Error deleting plan:", error);
+            Alert.alert("Hata", (error as Error).message);
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
   };
 
   const handleDownload = async () => {
@@ -139,7 +227,6 @@ export default function NewProjectScreen() {
         muzik_listesi: musicArray,
         sections: JSON.stringify({}),
         fields: JSON.stringify({
-          // Flatten days object for docxtemplater: pazartesi.genel, pazartesi.kuran, etc.
           pazartesi: days.pazartesi,
           sali: days.sali,
           carsamba: days.carsamba,
@@ -169,6 +256,15 @@ export default function NewProjectScreen() {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <ThemedView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={tintColor} />
+        <ThemedText style={{ marginTop: 10 }}>Yükleniyor...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -286,7 +382,7 @@ export default function NewProjectScreen() {
             onPress={handleSave}
           >
             <ThemedText style={styles.btnText}>
-              {saving ? "Kaydediliyor..." : "Kaydet"}
+              {saving ? "Kaydediliyor..." : "Güncelle"}
             </ThemedText>
           </TouchableOpacity>
 
@@ -304,6 +400,16 @@ export default function NewProjectScreen() {
             </ThemedText>
           </TouchableOpacity>
         </ThemedView>
+
+        <TouchableOpacity
+          style={[styles.deleteBtn, deleting && { opacity: 0.5 }]}
+          disabled={deleting}
+          onPress={handleDelete}
+        >
+          <ThemedText style={styles.deleteBtnText}>
+            {deleting ? "Siliniyor..." : "Projeyi Sil"}
+          </ThemedText>
+        </TouchableOpacity>
       </ScrollView>
     </ThemedView>
   );
@@ -311,6 +417,11 @@ export default function NewProjectScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   scrollContent: { padding: 20 },
   header: { marginTop: 20, marginBottom: 10 },
   input: {
@@ -346,13 +457,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginTop: 30,
-    marginBottom: 50,
   },
   saveBtn: {
     backgroundColor: "#4CAF50",
   },
   btnText: {
     color: "black",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  deleteBtn: {
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    marginBottom: 50,
+    backgroundColor: "#f44336",
+  },
+  deleteBtnText: {
+    color: "white",
     textAlign: "center",
     fontWeight: "bold",
     fontSize: 16,
