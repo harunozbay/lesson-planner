@@ -6,7 +6,7 @@ import { deletePlan, updatePlan } from "@/src/graphql/mutations";
 import { generatePlan, getPlan } from "@/src/graphql/queries";
 import { generateClient } from "aws-amplify/api";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -43,7 +43,10 @@ export default function EditProjectScreen() {
     degerler_egitimi: "Değerler Eğitimi",
     tamamlayici_kazanim: "Tamamlayıcı Kazanım",
   };
-  const dayNames = ["pazartesi", "sali", "carsamba", "persembe", "cuma"];
+  const dayNames = useMemo(
+    () => ["pazartesi", "sali", "carsamba", "persembe", "cuma"],
+    []
+  );
   const dayDisplayNames: Record<string, string> = {
     pazartesi: "Pazartesi",
     sali: "Salı",
@@ -52,43 +55,46 @@ export default function EditProjectScreen() {
     cuma: "Cuma",
   };
 
-  const emptyDays: Record<string, Record<string, string>> = {
-    pazartesi: {
-      genel: "",
-      kuran: "",
-      dini_bilgiler: "",
-      degerler_egitimi: "",
-      tamamlayici_kazanim: "",
-    },
-    sali: {
-      genel: "",
-      kuran: "",
-      dini_bilgiler: "",
-      degerler_egitimi: "",
-      tamamlayici_kazanim: "",
-    },
-    carsamba: {
-      genel: "",
-      kuran: "",
-      dini_bilgiler: "",
-      degerler_egitimi: "",
-      tamamlayici_kazanim: "",
-    },
-    persembe: {
-      genel: "",
-      kuran: "",
-      dini_bilgiler: "",
-      degerler_egitimi: "",
-      tamamlayici_kazanim: "",
-    },
-    cuma: {
-      genel: "",
-      kuran: "",
-      dini_bilgiler: "",
-      degerler_egitimi: "",
-      tamamlayici_kazanim: "",
-    },
-  };
+  const emptyDays = useMemo<Record<string, Record<string, string>>>(
+    () => ({
+      pazartesi: {
+        genel: "",
+        kuran: "",
+        dini_bilgiler: "",
+        degerler_egitimi: "",
+        tamamlayici_kazanim: "",
+      },
+      sali: {
+        genel: "",
+        kuran: "",
+        dini_bilgiler: "",
+        degerler_egitimi: "",
+        tamamlayici_kazanim: "",
+      },
+      carsamba: {
+        genel: "",
+        kuran: "",
+        dini_bilgiler: "",
+        degerler_egitimi: "",
+        tamamlayici_kazanim: "",
+      },
+      persembe: {
+        genel: "",
+        kuran: "",
+        dini_bilgiler: "",
+        degerler_egitimi: "",
+        tamamlayici_kazanim: "",
+      },
+      cuma: {
+        genel: "",
+        kuran: "",
+        dini_bilgiler: "",
+        degerler_egitimi: "",
+        tamamlayici_kazanim: "",
+      },
+    }),
+    []
+  );
 
   const [days, setDays] =
     useState<Record<string, Record<string, string>>>(emptyDays);
@@ -103,53 +109,52 @@ export default function EditProjectScreen() {
   const tintColor = useThemeColor({}, "tint");
 
   useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        setFetching(true);
+        const result: any = await client.graphql({
+          query: getPlan,
+          variables: { id },
+        });
+
+        const plan = result.data.getPlan;
+        if (plan) {
+          setProjeAdi(plan.title || "");
+          setTarihAraligi(plan.dateRange || "");
+
+          if (plan.fields) {
+            try {
+              const parsedFields = JSON.parse(plan.fields);
+              // Merge with empty days to ensure all fields exist
+              const mergedDays = { ...emptyDays };
+              for (const day of dayNames) {
+                if (parsedFields[day]) {
+                  mergedDays[day] = { ...emptyDays[day], ...parsedFields[day] };
+                }
+              }
+              setDays(mergedDays);
+
+              // Extract extra fields if stored
+              if (parsedFields.haftaNo) setHaftaNo(parsedFields.haftaNo);
+              if (parsedFields.kurumAdi) setKurumAdi(parsedFields.kurumAdi);
+              if (parsedFields.muzikListesi)
+                setMuzikListesi(parsedFields.muzikListesi);
+            } catch (e) {
+              console.error("Error parsing fields:", e);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching plan:", error);
+        Alert.alert("Hata", "Proje yüklenemedi.");
+      } finally {
+        setFetching(false);
+      }
+    };
     if (id) {
       fetchPlan();
     }
-  }, [id]);
-
-  const fetchPlan = async () => {
-    try {
-      setFetching(true);
-      const result: any = await client.graphql({
-        query: getPlan,
-        variables: { id },
-      });
-
-      const plan = result.data.getPlan;
-      if (plan) {
-        setProjeAdi(plan.title || "");
-        setTarihAraligi(plan.dateRange || "");
-
-        if (plan.fields) {
-          try {
-            const parsedFields = JSON.parse(plan.fields);
-            // Merge with empty days to ensure all fields exist
-            const mergedDays = { ...emptyDays };
-            for (const day of dayNames) {
-              if (parsedFields[day]) {
-                mergedDays[day] = { ...emptyDays[day], ...parsedFields[day] };
-              }
-            }
-            setDays(mergedDays);
-
-            // Extract extra fields if stored
-            if (parsedFields.haftaNo) setHaftaNo(parsedFields.haftaNo);
-            if (parsedFields.kurumAdi) setKurumAdi(parsedFields.kurumAdi);
-            if (parsedFields.muzikListesi)
-              setMuzikListesi(parsedFields.muzikListesi);
-          } catch (e) {
-            console.error("Error parsing fields:", e);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching plan:", error);
-      Alert.alert("Hata", "Proje yüklenemedi.");
-    } finally {
-      setFetching(false);
-    }
-  };
+  }, [id, dayNames, emptyDays]);
 
   const handleSave = async () => {
     if (!projeAdi.trim()) {
