@@ -24,10 +24,10 @@
       },
       "function": {
         "generateDocx": {
-          "templateKey": "word_template_s3_path",
-          "outputDir": "docx_output_dir",
+          "templateKey": "templates/lesson_planner_default_template.docx",
+          "outputDir": "plans",
           "deploymentBucketName": "amplify-lessonplanner-dev-5724c-deployment",
-          "s3Key": "amplify-builds/generateDocx-484a44345a6e4d414d73-build.zip"
+          "s3Key": "amplify-builds/generateDocx-374e382b307a64347753-build.zip"
         }
       }
     }

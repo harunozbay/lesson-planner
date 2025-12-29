@@ -16,8 +16,10 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Buffer } from "buffer";
 import Docxtemplater from "docxtemplater";
+import InspectModule from "docxtemplater/js/inspect-module.js";
 import PizZip from "pizzip";
 import { v4 as uuidv4 } from "uuid";
 
@@ -54,9 +56,15 @@ export const handler = async (event) => {
 
     // 2. Docxtemplater setup
     const zip = new PizZip(templateBuffer);
+    const iModule = new InspectModule();
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
+      modules: [iModule],
+      delimiters: {
+        start: "{{",
+        end: "}}",
+      },
     });
 
     // 3. DOCX içine data bağlama
@@ -64,23 +72,95 @@ export const handler = async (event) => {
     const sections =
       typeof body.sections === "string"
         ? JSON.parse(body.sections)
-        : body.sections;
+        : body.sections || {};
     const fields =
-      typeof body.fields === "string" ? JSON.parse(body.fields) : body.fields;
+      typeof body.fields === "string"
+        ? JSON.parse(body.fields)
+        : body.fields || {};
 
-    doc.setData({
-      hafta_no: body.hafta_no,
-      tarih_araligi: body.tarih_araligi,
-      kurum_adi: body.kurum_adi,
+    // Debug: Gelen veriyi logla
+    console.log("Raw body.fields:", body.fields);
+    console.log("Parsed fields:", JSON.stringify(fields, null, 2));
+
+    // Template'deki tüm tag'leri logla (debug için)
+    const allTags = iModule.getAllTags();
+    console.log("Template tags:", JSON.stringify(allTags, null, 2));
+
+    // Günler için null-safe objeler oluştur
+    const pazartesi = fields.pazartesi || {};
+    const sali = fields.sali || {};
+    const carsamba = fields.carsamba || {};
+    const persembe = fields.persembe || {};
+    const cuma = fields.cuma || {};
+
+    // Flat key formatında templateData oluştur ({{pazartesi.genel}} -> "pazartesi.genel" key)
+    const templateData = {
+      hafta_no: body.hafta_no || "",
+      tarih_araligi: body.tarih_araligi || "",
+      kurum_adi: body.kurum_adi || "",
       muzik_listesi: Array.isArray(body.muzik_listesi)
         ? body.muzik_listesi.join(", ")
-        : body.muzik_listesi,
+        : body.muzik_listesi || "",
 
-      ...sections, // başlıklar
-      ...fields, // günlük içerikler
-    });
+      // Pazartesi
+      "pazartesi.genel": pazartesi.genel || "",
+      "pazartesi.kuran": pazartesi.kuran || "",
+      "pazartesi.dini_bilgiler": pazartesi.dini_bilgiler || "",
+      "pazartesi.degerler_egitimi": pazartesi.degerler_egitimi || "",
+      "pazartesi.tamamlayici_kazanim": pazartesi.tamamlayici_kazanim || "",
 
-    doc.render();
+      // Salı
+      "sali.genel": sali.genel || "",
+      "sali.kuran": sali.kuran || "",
+      "sali.dini_bilgiler": sali.dini_bilgiler || "",
+      "sali.degerler_egitimi": sali.degerler_egitimi || "",
+      "sali.tamamlayici_kazanim": sali.tamamlayici_kazanim || "",
+
+      // Çarşamba
+      "carsamba.genel": carsamba.genel || "",
+      "carsamba.kuran": carsamba.kuran || "",
+      "carsamba.dini_bilgiler": carsamba.dini_bilgiler || "",
+      "carsamba.degerler_egitimi": carsamba.degerler_egitimi || "",
+      "carsamba.tamamlayici_kazanim": carsamba.tamamlayici_kazanim || "",
+
+      // Perşembe
+      "persembe.genel": persembe.genel || "",
+      "persembe.kuran": persembe.kuran || "",
+      "persembe.dini_bilgiler": persembe.dini_bilgiler || "",
+      "persembe.degerler_egitimi": persembe.degerler_egitimi || "",
+      "persembe.tamamlayici_kazanim": persembe.tamamlayici_kazanim || "",
+
+      // Cuma
+      "cuma.genel": cuma.genel || "",
+      "cuma.kuran": cuma.kuran || "",
+      "cuma.dini_bilgiler": cuma.dini_bilgiler || "",
+      "cuma.degerler_egitimi": cuma.degerler_egitimi || "",
+      "cuma.tamamlayici_kazanim": cuma.tamamlayici_kazanim || "",
+
+      ...sections,
+    };
+
+    console.log("Final templateData:", JSON.stringify(templateData, null, 2));
+
+    doc.setData(templateData);
+
+    try {
+      doc.render();
+    } catch (renderError) {
+      // Docxtemplater multi-error detaylı loglama
+      if (renderError.properties && renderError.properties.errors) {
+        console.error("Docxtemplater render errors:");
+        renderError.properties.errors.forEach((err, idx) => {
+          console.error(`Error ${idx + 1}:`, {
+            message: err.message,
+            id: err.properties?.id,
+            explanation: err.properties?.explanation,
+            xtag: err.properties?.xtag,
+          });
+        });
+      }
+      throw renderError;
+    }
 
     const generatedBuffer = doc.getZip().generate({
       type: "nodebuffer",
@@ -100,7 +180,15 @@ export const handler = async (event) => {
       })
     );
 
-    const fileUrl = `https://${TEMPLATE_BUCKET}.s3.amazonaws.com/${outputKey}`;
+    // Pre-signed URL oluştur (1 saat geçerli)
+    const fileUrl = await getSignedUrl(
+      s3,
+      new GetObjectCommand({
+        Bucket: TEMPLATE_BUCKET,
+        Key: outputKey,
+      }),
+      { expiresIn: 3600 }
+    );
 
     const responseData = { url: fileUrl };
 
@@ -115,11 +203,38 @@ export const handler = async (event) => {
       body: JSON.stringify(responseData),
     };
   } catch (err) {
-    console.error(err);
-    if (event.arguments) {
-      throw new Error(err.message);
+    console.error("Error occurred:", err);
+
+    // Docxtemplater multi-error durumunda detaylı loglama
+    if (err.properties && err.properties.errors) {
+      console.error("Docxtemplater detailed errors:");
+      err.properties.errors.forEach((e, idx) => {
+        console.error(
+          `Error ${idx + 1}:`,
+          JSON.stringify(
+            {
+              message: e.message,
+              id: e.properties?.id,
+              explanation: e.properties?.explanation,
+              xtag: e.properties?.xtag,
+              offset: e.properties?.offset,
+              file: e.properties?.file,
+            },
+            null,
+            2
+          )
+        );
+      });
     }
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+
+    const errorMessage = err.properties?.errors
+      ? err.properties.errors.map((e) => e.message).join("; ")
+      : err.message;
+
+    if (event.arguments) {
+      throw new Error(errorMessage);
+    }
+    return { statusCode: 500, body: JSON.stringify({ error: errorMessage }) };
   }
 };
 
