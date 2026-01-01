@@ -12,7 +12,13 @@ import {
 import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef } from "react";
-import { ActivityIndicator, PanResponder, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  PanResponder,
+  View,
+} from "react-native";
 import "react-native-reanimated";
 
 import { Amplify } from "aws-amplify";
@@ -20,10 +26,11 @@ import awsconfig from "./aws-exports";
 
 Amplify.configure(awsconfig);
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 80;
 
 // Ana sayfa rotaları (tab bar'da gösterilecek)
-const TAB_ROUTES = ["/", "/profile", "/theme"];
+const TAB_ROUTES = ["/", "/theme", "/profile"];
 
 function AppContent() {
   const colorScheme = useColorScheme();
@@ -31,11 +38,14 @@ function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const { topBarTranslateY } = useScroll();
   const pathnameRef = useRef(pathname);
+  const swipeAnim = useRef(new Animated.Value(0)).current;
 
   // pathname değiştiğinde ref'i güncelle
   useEffect(() => {
     pathnameRef.current = pathname;
-  }, [pathname]);
+    // Sayfa değiştiğinde animasyonu sıfırla
+    swipeAnim.setValue(0);
+  }, [pathname, swipeAnim]);
 
   // Auth durumuna göre yönlendirme
   useEffect(() => {
@@ -49,33 +59,66 @@ function AppContent() {
   }, [isAuthenticated, isLoading, pathname]);
 
   // Swipe navigation için
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Yatay hareket dikey hareketten büyükse ve yeterli hızda ise
-        return (
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
-          Math.abs(gestureState.dx) > 20
-        );
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        const currentPath = pathnameRef.current;
-        const currentIndex = TAB_ROUTES.indexOf(currentPath);
-        if (currentIndex === -1) return;
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (evt, gestureState) => {
+          // Yatay hareket dikey hareketten büyükse ve yeterli hızda ise
+          return (
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+            Math.abs(gestureState.dx) > 20
+          );
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const currentPath = pathnameRef.current;
+          const currentIndex = TAB_ROUTES.indexOf(currentPath);
+          if (currentIndex === -1) return;
 
-        if (
-          gestureState.dx < -SWIPE_THRESHOLD &&
-          currentIndex < TAB_ROUTES.length - 1
-        ) {
-          // Sola kaydır = sonraki tab
-          router.push(TAB_ROUTES[currentIndex + 1] as any);
-        } else if (gestureState.dx > SWIPE_THRESHOLD && currentIndex > 0) {
-          // Sağa kaydır = önceki tab
-          router.push(TAB_ROUTES[currentIndex - 1] as any);
-        }
-      },
-    })
-  ).current;
+          // Sınırları kontrol et
+          if (gestureState.dx > 0 && currentIndex === 0) return;
+          if (gestureState.dx < 0 && currentIndex === TAB_ROUTES.length - 1)
+            return;
+
+          swipeAnim.setValue(gestureState.dx);
+        },
+        onPanResponderRelease: (evt, gestureState) => {
+          const currentPath = pathnameRef.current;
+          const currentIndex = TAB_ROUTES.indexOf(currentPath);
+          if (currentIndex === -1) return;
+
+          if (
+            gestureState.dx < -SWIPE_THRESHOLD &&
+            currentIndex < TAB_ROUTES.length - 1
+          ) {
+            // Sola kaydır = sonraki tab
+            Animated.timing(swipeAnim, {
+              toValue: -SCREEN_WIDTH,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => {
+              router.replace(TAB_ROUTES[currentIndex + 1] as any);
+            });
+          } else if (gestureState.dx > SWIPE_THRESHOLD && currentIndex > 0) {
+            // Sağa kaydır = önceki tab
+            Animated.timing(swipeAnim, {
+              toValue: SCREEN_WIDTH,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => {
+              router.replace(TAB_ROUTES[currentIndex - 1] as any);
+            });
+          } else {
+            // Geri dön
+            Animated.spring(swipeAnim, {
+              toValue: 0,
+              useNativeDriver: true,
+              friction: 8,
+            }).start();
+          }
+        },
+      }),
+    [swipeAnim]
+  );
 
   const getPageTitle = () => {
     switch (pathname) {
@@ -106,20 +149,33 @@ function AppContent() {
           <TopBar title={getPageTitle()} translateY={topBarTranslateY} />
         )}
 
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "slide_from_right",
+        <Animated.View
+          style={{
+            flex: 1,
+            transform: isTabRoute ? [{ translateX: swipeAnim }] : [],
           }}
         >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="new-project" />
-          <Stack.Screen name="edit-project" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="theme" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        </Stack>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "none",
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen
+              name="new-project"
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="edit-project"
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="theme" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+          </Stack>
+        </Animated.View>
 
         {showNavigation && <TabBar currentRoute={pathname} />}
       </View>

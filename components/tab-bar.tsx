@@ -27,18 +27,18 @@ const tabs: TabItem[] = [
     iconOutline: "home-outline",
   },
   {
-    id: "profile",
-    route: "/profile",
-    label: "Profil",
-    icon: "person",
-    iconOutline: "person-outline",
-  },
-  {
     id: "theme",
     route: "/theme",
     label: "Tema",
     icon: "color-palette",
     iconOutline: "color-palette-outline",
+  },
+  {
+    id: "profile",
+    route: "/profile",
+    label: "Profil",
+    icon: "person",
+    iconOutline: "person-outline",
   },
 ];
 
