@@ -1,12 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Collapsible } from "@/components/ui/collapsible";
+import { AppColors } from "@/constants/colors";
+import { TOP_BAR_PADDING, useScroll } from "@/contexts/scroll-context";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { createPlan } from "@/src/graphql/mutations";
 import { generatePlan } from "@/src/graphql/queries";
+import { Ionicons } from "@expo/vector-icons";
 import { generateClient } from "aws-amplify/api";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Linking,
@@ -14,9 +17,28 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  View,
 } from "react-native";
 
 const client = generateClient({ authMode: "userPool" });
+
+// Gün renkleri
+const dayColors: Record<string, string> = {
+  pazartesi: AppColors.days.pazartesi,
+  sali: AppColors.days.sali,
+  carsamba: AppColors.days.carsamba,
+  persembe: AppColors.days.persembe,
+  cuma: AppColors.days.cuma,
+};
+
+// Field renkleri
+const fieldColors: Record<string, string> = {
+  genel: AppColors.fields.genel,
+  kuran: AppColors.fields.kuran,
+  dini_bilgiler: AppColors.fields.dini_bilgiler,
+  degerler_egitimi: AppColors.fields.degerler_egitimi,
+  tamamlayici_kazanim: AppColors.fields.tamamlayici_kazanim,
+};
 
 export default function NewProjectScreen() {
   const [projeAdi, setProjeAdi] = useState("");
@@ -25,7 +47,6 @@ export default function NewProjectScreen() {
   const [kurumAdi, setKurumAdi] = useState("");
   const [muzikListesi, setMuzikListesi] = useState("");
 
-  // Her gün için alt alanlar
   const dayFields = [
     "genel",
     "kuran",
@@ -49,7 +70,6 @@ export default function NewProjectScreen() {
     cuma: "Cuma",
   };
 
-  // Daily fields - her gün için 5 alan
   const [days, setDays] = useState<Record<string, Record<string, string>>>({
     pazartesi: {
       genel: "",
@@ -90,9 +110,17 @@ export default function NewProjectScreen() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
   const textColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "icon");
-  const tintColor = useThemeColor({}, "tint");
+  const backgroundColor = useThemeColor({}, "background");
+  const { handleScroll, resetTopBar } = useScroll();
+
+  useFocusEffect(
+    useCallback(() => {
+      resetTopBar();
+    }, [resetTopBar])
+  );
 
   const handleSave = async () => {
     if (!projeAdi.trim()) {
@@ -108,7 +136,12 @@ export default function NewProjectScreen() {
           input: {
             title: projeAdi,
             dateRange: tarihAraligi,
-            fields: JSON.stringify(days),
+            fields: JSON.stringify({
+              ...days,
+              haftaNo,
+              kurumAdi,
+              muzikListesi,
+            }),
             docxUrl: null,
           },
         },
@@ -139,7 +172,6 @@ export default function NewProjectScreen() {
         muzik_listesi: musicArray,
         sections: JSON.stringify({}),
         fields: JSON.stringify({
-          // Flatten days object for docxtemplater: pazartesi.genel, pazartesi.kuran, etc.
           pazartesi: days.pazartesi,
           sali: days.sali,
           carsamba: days.carsamba,
@@ -172,7 +204,14 @@ export default function NewProjectScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: TOP_BAR_PADDING },
+        ]}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <ThemedText type="subtitle" style={styles.header}>
           Genel Bilgiler
         </ThemedText>
@@ -180,7 +219,11 @@ export default function NewProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Proje Adı *"
           placeholderTextColor={placeholderColor}
@@ -190,7 +233,11 @@ export default function NewProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Hafta No"
           placeholderTextColor={placeholderColor}
@@ -200,7 +247,11 @@ export default function NewProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Tarih Aralığı"
           placeholderTextColor={placeholderColor}
@@ -210,7 +261,11 @@ export default function NewProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Kurum Adı"
           placeholderTextColor={placeholderColor}
@@ -220,7 +275,11 @@ export default function NewProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Müzik Listesi (virgülle ayırın)"
           placeholderTextColor={placeholderColor}
@@ -233,35 +292,73 @@ export default function NewProjectScreen() {
         </ThemedText>
 
         {dayNames.map((day) => (
-          <ThemedView key={day} style={styles.daySection}>
-            <Collapsible title={dayDisplayNames[day]}>
+          <View
+            key={day}
+            style={[
+              styles.daySection,
+              { borderLeftColor: dayColors[day], borderLeftWidth: 4 },
+            ]}
+          >
+            <Collapsible
+              title={dayDisplayNames[day]}
+              titleStyle={{ color: dayColors[day], fontWeight: "bold" }}
+            >
               {dayFields.map((field) => (
-                <TextInput
-                  key={`${day}-${field}`}
-                  style={[
-                    styles.textArea,
-                    { color: textColor, borderColor: placeholderColor },
-                  ]}
-                  placeholder={dayLabels[field]}
-                  placeholderTextColor={placeholderColor}
-                  multiline
-                  value={days[day][field]}
-                  onChangeText={(text) =>
-                    setDays((prev) => ({
-                      ...prev,
-                      [day]: { ...prev[day], [field]: text },
-                    }))
-                  }
-                />
+                <View key={`${day}-${field}`} style={styles.fieldContainer}>
+                  <View
+                    style={[
+                      styles.fieldLabel,
+                      { backgroundColor: `${fieldColors[field]}20` },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.fieldDot,
+                        { backgroundColor: fieldColors[field] },
+                      ]}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.fieldLabelText,
+                        { color: fieldColors[field] },
+                      ]}
+                    >
+                      {dayLabels[field]}
+                    </ThemedText>
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      {
+                        color: textColor,
+                        borderColor: `${fieldColors[field]}40`,
+                        backgroundColor,
+                      },
+                    ]}
+                    placeholder={`${dayLabels[field]} için not ekleyin...`}
+                    placeholderTextColor={placeholderColor}
+                    multiline
+                    value={days[day][field]}
+                    onChangeText={(text) =>
+                      setDays((prev) => ({
+                        ...prev,
+                        [day]: { ...prev[day], [field]: text },
+                      }))
+                    }
+                  />
+                </View>
               ))}
-              <ThemedView style={styles.copyButtonsRow}>
+              <View style={styles.copyButtonsRow}>
                 <ThemedText style={styles.copyLabel}>Kopyala:</ThemedText>
                 {dayNames
                   .filter((d) => d !== day)
                   .map((otherDay) => (
                     <TouchableOpacity
                       key={`copy-${day}-${otherDay}`}
-                      style={styles.copyBtn}
+                      style={[
+                        styles.copyBtn,
+                        { backgroundColor: `${dayColors[otherDay]}20` },
+                      ]}
                       onPress={() =>
                         setDays((prev) => ({
                           ...prev,
@@ -269,41 +366,44 @@ export default function NewProjectScreen() {
                         }))
                       }
                     >
-                      <ThemedText style={styles.copyBtnText}>
+                      <ThemedText
+                        style={[
+                          styles.copyBtnText,
+                          { color: dayColors[otherDay] },
+                        ]}
+                      >
                         {dayDisplayNames[otherDay]}
                       </ThemedText>
                     </TouchableOpacity>
                   ))}
-              </ThemedView>
+              </View>
             </Collapsible>
-          </ThemedView>
+          </View>
         ))}
 
-        <ThemedView style={styles.buttonRow}>
+        <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.btn, styles.saveBtn, saving && { opacity: 0.5 }]}
+            style={[styles.btn, styles.saveBtn, saving && styles.disabled]}
             disabled={saving}
             onPress={handleSave}
           >
-            <ThemedText style={styles.btnText}>
+            <Ionicons name="save" size={18} color="#fff" />
+            <ThemedText style={styles.btnTextWhite}>
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </ThemedText>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.btn,
-              { backgroundColor: tintColor },
-              loading && { opacity: 0.5 },
-            ]}
+            style={[styles.btn, styles.downloadBtn, loading && styles.disabled]}
             disabled={loading}
             onPress={handleDownload}
           >
-            <ThemedText style={styles.btnText}>
+            <Ionicons name="download" size={18} color="#fff" />
+            <ThemedText style={styles.btnTextWhite}>
               {loading ? "Oluşturuluyor..." : "İndir"}
             </ThemedText>
           </TouchableOpacity>
-        </ThemedView>
+        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -312,35 +412,59 @@ export default function NewProjectScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20 },
-  header: { marginTop: 20, marginBottom: 10 },
+  header: { marginTop: 20, marginBottom: 10, color: AppColors.primary },
   input: {
     borderWidth: 1,
-    padding: 12,
-    marginVertical: 5,
-    borderRadius: 8,
+    padding: 14,
+    marginVertical: 6,
+    borderRadius: 12,
     fontSize: 16,
   },
   daySection: {
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 8,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#e0e0e0",
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  fieldContainer: {
+    marginBottom: 10,
+  },
+  fieldLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  fieldDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  fieldLabelText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   textArea: {
     borderWidth: 1,
     padding: 12,
-    marginVertical: 5,
-    borderRadius: 8,
-    fontSize: 16,
-    height: 80,
+    borderRadius: 10,
+    fontSize: 15,
+    minHeight: 80,
     textAlignVertical: "top",
-    width: "100%",
   },
   btn: {
-    padding: 15,
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 12,
     flex: 1,
+    gap: 6,
   },
   buttonRow: {
     flexDirection: "row",
@@ -349,21 +473,26 @@ const styles = StyleSheet.create({
     marginBottom: 50,
   },
   saveBtn: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: AppColors.success,
   },
-  btnText: {
-    color: "black",
-    textAlign: "center",
+  downloadBtn: {
+    backgroundColor: AppColors.primary,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  btnTextWhite: {
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 15,
   },
   copyButtonsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     gap: 6,
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#eee",
   },
@@ -373,13 +502,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   copyBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
   copyBtnText: {
-    fontSize: 11,
-    color: "#333",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

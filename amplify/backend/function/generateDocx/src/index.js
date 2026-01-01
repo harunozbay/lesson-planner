@@ -12,7 +12,9 @@ Amplify Params - DO NOT EDIT */
  */
 
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -22,6 +24,53 @@ import Docxtemplater from "docxtemplater";
 import InspectModule from "docxtemplater/js/inspect-module.js";
 import PizZip from "pizzip";
 import { v4 as uuidv4 } from "uuid";
+
+/**
+ * Kullanıcıya ait klasördeki tüm dosyaları siler
+ * @param {string} bucket - S3 bucket adı
+ * @param {string} prefix - Kullanıcı klasör prefix'i (örn: "plans/user123/")
+ */
+async function deleteUserFiles(bucket, prefix) {
+  try {
+    // Klasördeki dosyaları listele
+    const listResponse = await s3.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+      })
+    );
+
+    if (!listResponse.Contents || listResponse.Contents.length === 0) {
+      console.log(`No existing files found in ${prefix}`);
+      return;
+    }
+
+    // Silinecek dosyaları hazırla
+    const objectsToDelete = listResponse.Contents.map((obj) => ({
+      Key: obj.Key,
+    }));
+
+    console.log(
+      `Deleting ${objectsToDelete.length} existing files from ${prefix}`
+    );
+
+    // Dosyaları sil
+    await s3.send(
+      new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: {
+          Objects: objectsToDelete,
+          Quiet: true,
+        },
+      })
+    );
+
+    console.log(`Successfully deleted ${objectsToDelete.length} files`);
+  } catch (error) {
+    console.error("Error deleting user files:", error);
+    // Silme hatası olsa bile devam et, yeni dosya oluşturulsun
+  }
+}
 
 const s3 = new S3Client({ region: process.env.REGION });
 
@@ -43,6 +92,23 @@ export const handler = async (event) => {
     // Template info
     const TEMPLATE_BUCKET = process.env.STORAGE_LESSONPLANNERSTORAGE_BUCKETNAME;
     const TEMPLATE_KEY = process.env.TEMPLATE_KEY;
+
+    // Kullanıcı ID'sini al (Cognito identity)
+    let userId = "anonymous";
+    if (event.identity) {
+      // AppSync Cognito User Pools: sub (user ID) veya username
+      userId = event.identity.sub || event.identity.username || "anonymous";
+    } else if (body.userId) {
+      // Body'den gelen userId (fallback)
+      userId = body.userId;
+    }
+    console.log("User ID:", userId);
+
+    // Kullanıcıya özel klasör prefix'i
+    const userPrefix = `plans/${userId}/`;
+
+    // Kullanıcının eski dosyalarını sil (storage tasarrufu)
+    await deleteUserFiles(TEMPLATE_BUCKET, userPrefix);
 
     // 1. Template S3'ten indir
     const templateFile = await s3.send(
@@ -167,8 +233,8 @@ export const handler = async (event) => {
       compression: "DEFLATE",
     });
 
-    // 4. Output dosyasını S3’e yükle
-    const outputKey = `plans/${uuidv4()}.docx`;
+    // 4. Output dosyasını kullanıcı klasörüne yükle
+    const outputKey = `${userPrefix}${uuidv4()}.docx`;
 
     await s3.send(
       new PutObjectCommand({

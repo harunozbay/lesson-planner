@@ -27,7 +27,7 @@
           "templateKey": "templates/lesson_planner_default_template.docx",
           "outputDir": "plans",
           "deploymentBucketName": "amplify-lessonplanner-dev-5724c-deployment",
-          "s3Key": "amplify-builds/generateDocx-374e382b307a64347753-build.zip"
+          "s3Key": "amplify-builds/generateDocx-45476c446b76524c5432-build.zip"
         }
       }
     }

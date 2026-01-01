@@ -1,61 +1,130 @@
+import { TabBar } from "@/components/tab-bar";
+import { TopBar } from "@/components/top-bar";
+import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { ScrollProvider, useScroll } from "@/contexts/scroll-context";
+import { ThemeProvider as AppThemeProvider } from "@/contexts/theme-context";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { ActivityIndicator, PanResponder, View } from "react-native";
 import "react-native-reanimated";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Amplify } from "aws-amplify";
-import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "./aws-exports";
 
-// ← AWS Amplify config EN ÜSTE EKLENİR
 Amplify.configure(awsconfig);
 
-export default function RootLayout() {
+const SWIPE_THRESHOLD = 80;
+
+// Ana sayfa rotaları (tab bar'da gösterilecek)
+const TAB_ROUTES = ["/", "/profile", "/theme"];
+
+function AppContent() {
   const colorScheme = useColorScheme();
-  const [authChecked, setAuthChecked] = useState(false);
+  const pathname = usePathname();
+  const { isAuthenticated, isLoading } = useAuth();
+  const { topBarTranslateY } = useScroll();
+  const pathnameRef = useRef(pathname);
 
+  // pathname değiştiğinde ref'i güncelle
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const session = await fetchAuthSession();
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
-        if (session?.tokens?.idToken) {
-          // Auth başarılı ise ana sayfaya (index) yönlendir
-          router.replace("/");
-        } else {
-          router.replace("/(auth)/login");
+  // Auth durumuna göre yönlendirme
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (isAuthenticated && pathname.includes("(auth)")) {
+      router.replace("/");
+    } else if (!isAuthenticated && !pathname.includes("(auth)")) {
+      router.replace("/(auth)/login");
+    }
+  }, [isAuthenticated, isLoading, pathname]);
+
+  // Swipe navigation için
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Yatay hareket dikey hareketten büyükse ve yeterli hızda ise
+        return (
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+          Math.abs(gestureState.dx) > 20
+        );
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const currentPath = pathnameRef.current;
+        const currentIndex = TAB_ROUTES.indexOf(currentPath);
+        if (currentIndex === -1) return;
+
+        if (
+          gestureState.dx < -SWIPE_THRESHOLD &&
+          currentIndex < TAB_ROUTES.length - 1
+        ) {
+          // Sola kaydır = sonraki tab
+          router.push(TAB_ROUTES[currentIndex + 1] as any);
+        } else if (gestureState.dx > SWIPE_THRESHOLD && currentIndex > 0) {
+          // Sağa kaydır = önceki tab
+          router.push(TAB_ROUTES[currentIndex - 1] as any);
         }
-      } catch (error) {
-        console.log("Auth Error:", error);
-        router.replace("/(auth)/login");
-      } finally {
-        setAuthChecked(true);
-      }
-    };
+      },
+    })
+  ).current;
 
-    checkAuth();
-  }, []);
+  const getPageTitle = () => {
+    switch (pathname) {
+      case "/":
+        return "Projelerim";
+      case "/profile":
+        return "Profil";
+      case "/new-project":
+        return "Yeni Proje";
+      case "/theme":
+        return "Tema";
+      default:
+        if (pathname.includes("edit-project")) return "Proje Düzenle";
+        return "";
+    }
+  };
+
+  const showNavigation = isAuthenticated && !pathname.includes("(auth)");
+  const isTabRoute = TAB_ROUTES.includes(pathname);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ title: "Projelerim" }} />
-        <Stack.Screen name="new-project" options={{ title: "Yeni Proje" }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
-      </Stack>
-      <StatusBar style="auto" />
-      {!authChecked && (
+      <View
+        style={{ flex: 1 }}
+        {...(isTabRoute && isAuthenticated ? panResponder.panHandlers : {})}
+      >
+        {showNavigation && (
+          <TopBar title={getPageTitle()} translateY={topBarTranslateY} />
+        )}
+
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="new-project" />
+          <Stack.Screen name="edit-project" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="theme" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        </Stack>
+
+        {showNavigation && <TabBar currentRoute={pathname} />}
+      </View>
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+      {isLoading && (
         <View
           style={{
             position: "absolute",
@@ -73,5 +142,17 @@ export default function RootLayout() {
         </View>
       )}
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <AuthProvider>
+        <ScrollProvider>
+          <AppContent />
+        </ScrollProvider>
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }

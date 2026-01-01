@@ -1,12 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Collapsible } from "@/components/ui/collapsible";
+import { AppColors } from "@/constants/colors";
+import { TOP_BAR_PADDING, useScroll } from "@/contexts/scroll-context";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { deletePlan, updatePlan } from "@/src/graphql/mutations";
 import { generatePlan, getPlan } from "@/src/graphql/queries";
+import { Ionicons } from "@expo/vector-icons";
 import { generateClient } from "aws-amplify/api";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,9 +18,28 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  View,
 } from "react-native";
 
 const client = generateClient({ authMode: "userPool" });
+
+// Gün renkleri
+const dayColors: Record<string, string> = {
+  pazartesi: AppColors.days.pazartesi,
+  sali: AppColors.days.sali,
+  carsamba: AppColors.days.carsamba,
+  persembe: AppColors.days.persembe,
+  cuma: AppColors.days.cuma,
+};
+
+// Field renkleri
+const fieldColors: Record<string, string> = {
+  genel: AppColors.fields.genel,
+  kuran: AppColors.fields.kuran,
+  dini_bilgiler: AppColors.fields.dini_bilgiler,
+  degerler_egitimi: AppColors.fields.degerler_egitimi,
+  tamamlayici_kazanim: AppColors.fields.tamamlayici_kazanim,
+};
 
 export default function EditProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,7 +50,9 @@ export default function EditProjectScreen() {
   const [kurumAdi, setKurumAdi] = useState("");
   const [muzikListesi, setMuzikListesi] = useState("");
 
-  // Her gün için alt alanlar
+  // Orijinal değerler (değişiklik takibi için)
+  const [originalData, setOriginalData] = useState<any>(null);
+
   const dayFields = [
     "genel",
     "kuran",
@@ -103,10 +127,56 @@ export default function EditProjectScreen() {
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [copyMode, setCopyMode] = useState<Record<string, "to" | "from">>({
+    pazartesi: "to",
+    sali: "to",
+    carsamba: "to",
+    persembe: "to",
+    cuma: "to",
+  });
 
   const textColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "icon");
-  const tintColor = useThemeColor({}, "tint");
+  const backgroundColor = useThemeColor({}, "background");
+  const { handleScroll, resetTopBar } = useScroll();
+
+  useFocusEffect(
+    useCallback(() => {
+      resetTopBar();
+    }, [resetTopBar])
+  );
+
+  // Değişiklik kontrolü
+  const hasChanges = useMemo(() => {
+    if (!originalData) return false;
+    return (
+      projeAdi !== originalData.projeAdi ||
+      haftaNo !== originalData.haftaNo ||
+      tarihAraligi !== originalData.tarihAraligi ||
+      kurumAdi !== originalData.kurumAdi ||
+      muzikListesi !== originalData.muzikListesi ||
+      JSON.stringify(days) !== JSON.stringify(originalData.days)
+    );
+  }, [
+    originalData,
+    projeAdi,
+    haftaNo,
+    tarihAraligi,
+    kurumAdi,
+    muzikListesi,
+    days,
+  ]);
+
+  // Undo fonksiyonu
+  const handleUndo = useCallback(() => {
+    if (!originalData) return;
+    setProjeAdi(originalData.projeAdi);
+    setHaftaNo(originalData.haftaNo);
+    setTarihAraligi(originalData.tarihAraligi);
+    setKurumAdi(originalData.kurumAdi);
+    setMuzikListesi(originalData.muzikListesi);
+    setDays(JSON.parse(JSON.stringify(originalData.days)));
+  }, [originalData]);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -119,30 +189,50 @@ export default function EditProjectScreen() {
 
         const plan = result.data.getPlan;
         if (plan) {
-          setProjeAdi(plan.title || "");
-          setTarihAraligi(plan.dateRange || "");
+          const title = plan.title || "";
+          const dateRange = plan.dateRange || "";
+          setProjeAdi(title);
+          setTarihAraligi(dateRange);
+
+          let parsedDays = { ...emptyDays };
+          let extraFields = { haftaNo: "", kurumAdi: "", muzikListesi: "" };
 
           if (plan.fields) {
             try {
               const parsedFields = JSON.parse(plan.fields);
-              // Merge with empty days to ensure all fields exist
               const mergedDays = { ...emptyDays };
               for (const day of dayNames) {
                 if (parsedFields[day]) {
                   mergedDays[day] = { ...emptyDays[day], ...parsedFields[day] };
                 }
               }
+              parsedDays = mergedDays;
               setDays(mergedDays);
 
-              // Extract extra fields if stored
-              if (parsedFields.haftaNo) setHaftaNo(parsedFields.haftaNo);
-              if (parsedFields.kurumAdi) setKurumAdi(parsedFields.kurumAdi);
-              if (parsedFields.muzikListesi)
+              if (parsedFields.haftaNo) {
+                setHaftaNo(parsedFields.haftaNo);
+                extraFields.haftaNo = parsedFields.haftaNo;
+              }
+              if (parsedFields.kurumAdi) {
+                setKurumAdi(parsedFields.kurumAdi);
+                extraFields.kurumAdi = parsedFields.kurumAdi;
+              }
+              if (parsedFields.muzikListesi) {
                 setMuzikListesi(parsedFields.muzikListesi);
+                extraFields.muzikListesi = parsedFields.muzikListesi;
+              }
             } catch (e) {
               console.error("Error parsing fields:", e);
             }
           }
+
+          // Orijinal veriyi kaydet
+          setOriginalData({
+            projeAdi: title,
+            tarihAraligi: dateRange,
+            days: JSON.parse(JSON.stringify(parsedDays)),
+            ...extraFields,
+          });
         }
       } catch (error) {
         console.error("Error fetching plan:", error);
@@ -180,8 +270,18 @@ export default function EditProjectScreen() {
           },
         },
       });
+
+      // Orijinal veriyi güncelle
+      setOriginalData({
+        projeAdi,
+        tarihAraligi,
+        haftaNo,
+        kurumAdi,
+        muzikListesi,
+        days: JSON.parse(JSON.stringify(days)),
+      });
+
       Alert.alert("Başarılı", "Proje güncellendi.");
-      router.replace("/");
     } catch (error) {
       console.error("Error updating plan:", error);
       Alert.alert("Hata", (error as Error).message);
@@ -265,7 +365,7 @@ export default function EditProjectScreen() {
   if (fetching) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={tintColor} />
+        <ActivityIndicator size="large" color={AppColors.primary} />
         <ThemedText style={{ marginTop: 10 }}>Yükleniyor...</ThemedText>
       </ThemedView>
     );
@@ -273,7 +373,14 @@ export default function EditProjectScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: TOP_BAR_PADDING },
+        ]}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <ThemedText type="subtitle" style={styles.header}>
           Genel Bilgiler
         </ThemedText>
@@ -281,7 +388,11 @@ export default function EditProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Proje Adı *"
           placeholderTextColor={placeholderColor}
@@ -291,7 +402,11 @@ export default function EditProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Hafta No"
           placeholderTextColor={placeholderColor}
@@ -301,7 +416,11 @@ export default function EditProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Tarih Aralığı"
           placeholderTextColor={placeholderColor}
@@ -311,7 +430,11 @@ export default function EditProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
           placeholder="Kurum Adı"
           placeholderTextColor={placeholderColor}
@@ -321,9 +444,13 @@ export default function EditProjectScreen() {
         <TextInput
           style={[
             styles.input,
-            { color: textColor, borderColor: placeholderColor },
+            {
+              color: textColor,
+              borderColor: placeholderColor,
+              backgroundColor,
+            },
           ]}
-          placeholder="Müzik Listesi (virgülle ayırın)"
+          placeholder="Müzik Listesi(virgülle ayırın)"
           placeholderTextColor={placeholderColor}
           value={muzikListesi}
           onChangeText={setMuzikListesi}
@@ -333,84 +460,214 @@ export default function EditProjectScreen() {
           Günlük Plan
         </ThemedText>
 
-        {dayNames.map((day) => (
-          <ThemedView key={day} style={styles.daySection}>
-            <Collapsible title={dayDisplayNames[day]}>
+        {dayNames.map((day, dayIndex) => (
+          <View
+            key={day}
+            style={[
+              styles.daySection,
+              { borderLeftColor: dayColors[day], borderLeftWidth: 4 },
+            ]}
+          >
+            <Collapsible
+              title={dayDisplayNames[day]}
+              titleStyle={{ color: dayColors[day], fontWeight: "bold" }}
+            >
               {dayFields.map((field) => (
-                <TextInput
-                  key={`${day}-${field}`}
-                  style={[
-                    styles.textArea,
-                    { color: textColor, borderColor: placeholderColor },
-                  ]}
-                  placeholder={dayLabels[field]}
-                  placeholderTextColor={placeholderColor}
-                  multiline
-                  value={days[day][field]}
-                  onChangeText={(text) =>
-                    setDays((prev) => ({
-                      ...prev,
-                      [day]: { ...prev[day], [field]: text },
-                    }))
-                  }
-                />
-              ))}
-              <ThemedView style={styles.copyButtonsRow}>
-                <ThemedText style={styles.copyLabel}>Kopyala:</ThemedText>
-                {dayNames
-                  .filter((d) => d !== day)
-                  .map((otherDay) => (
-                    <TouchableOpacity
-                      key={`copy-${day}-${otherDay}`}
-                      style={styles.copyBtn}
-                      onPress={() =>
-                        setDays((prev) => ({
-                          ...prev,
-                          [day]: { ...prev[otherDay] },
-                        }))
-                      }
+                <View key={`${day}-${field}`} style={styles.fieldContainer}>
+                  <View
+                    style={[
+                      styles.fieldLabel,
+                      { backgroundColor: `${fieldColors[field]}20` },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.fieldDot,
+                        { backgroundColor: fieldColors[field] },
+                      ]}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.fieldLabelText,
+                        { color: fieldColors[field] },
+                      ]}
                     >
-                      <ThemedText style={styles.copyBtnText}>
-                        {dayDisplayNames[otherDay]}
+                      {dayLabels[field]}
+                    </ThemedText>
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      {
+                        color: textColor,
+                        borderColor: `${fieldColors[field]}40`,
+                        backgroundColor,
+                      },
+                    ]}
+                    placeholder={`${dayLabels[field]} için not ekleyin...`}
+                    placeholderTextColor={placeholderColor}
+                    multiline
+                    value={days[day][field]}
+                    onChangeText={(text) =>
+                      setDays((prev) => ({
+                        ...prev,
+                        [day]: { ...prev[day], [field]: text },
+                      }))
+                    }
+                  />
+                </View>
+              ))}
+              <View style={styles.copyButtonsRow}>
+                <View style={styles.copyModeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.copyModeBtn,
+                      copyMode[day] === "to" && styles.copyModeBtnActive,
+                    ]}
+                    onPress={() =>
+                      setCopyMode((prev) => ({ ...prev, [day]: "to" }))
+                    }
+                  >
+                    <ThemedText
+                      style={[
+                        styles.copyModeBtnText,
+                        copyMode[day] === "to" && styles.copyModeBtnTextActive,
+                      ]}
+                    >
+                      Güne Kopyala
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.copyModeBtn,
+                      copyMode[day] === "from" && styles.copyModeBtnActive,
+                    ]}
+                    onPress={() =>
+                      setCopyMode((prev) => ({ ...prev, [day]: "from" }))
+                    }
+                  >
+                    <ThemedText
+                      style={[
+                        styles.copyModeBtnText,
+                        copyMode[day] === "from" &&
+                          styles.copyModeBtnTextActive,
+                      ]}
+                    >
+                      Günden Kopyala
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.copyDaysRow}>
+                  {dayNames
+                    .filter((d) => d !== day)
+                    .map((otherDay) => (
+                      <TouchableOpacity
+                        key={`copy-${day}-${otherDay}`}
+                        style={[
+                          styles.copyBtn,
+                          { backgroundColor: `${dayColors[otherDay]}20` },
+                        ]}
+                        onPress={() => {
+                          if (copyMode[day] === "to") {
+                            // Bu günün içeriğini diğer güne kopyala
+                            setDays((prev) => ({
+                              ...prev,
+                              [otherDay]: { ...prev[day] },
+                            }));
+                          } else {
+                            // Diğer günden bu güne kopyala
+                            setDays((prev) => ({
+                              ...prev,
+                              [day]: { ...prev[otherDay] },
+                            }));
+                          }
+                        }}
+                      >
+                        <ThemedText
+                          style={[
+                            styles.copyBtnText,
+                            { color: dayColors[otherDay] },
+                          ]}
+                        >
+                          {dayDisplayNames[otherDay]}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  {copyMode[day] === "to" && (
+                    <TouchableOpacity
+                      style={[styles.copyBtn, styles.copyAllBtn]}
+                      onPress={() => {
+                        // Bu günün içeriğini tüm günlere kopyala
+                        setDays((prev) => {
+                          const newDays = { ...prev };
+                          dayNames.forEach((d) => {
+                            if (d !== day) {
+                              newDays[d] = { ...prev[day] };
+                            }
+                          });
+                          return newDays;
+                        });
+                      }}
+                    >
+                      <ThemedText style={styles.copyAllBtnText}>
+                        Tümü
                       </ThemedText>
                     </TouchableOpacity>
-                  ))}
-              </ThemedView>
+                  )}
+                </View>
+              </View>
             </Collapsible>
-          </ThemedView>
+          </View>
         ))}
 
-        <ThemedView style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.btn, styles.saveBtn, saving && { opacity: 0.5 }]}
-            disabled={saving}
-            onPress={handleSave}
-          >
-            <ThemedText style={styles.btnText}>
-              {saving ? "Kaydediliyor..." : "Güncelle"}
-            </ThemedText>
-          </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.buttonRow}>
+          {hasChanges && (
+            <>
+              <TouchableOpacity
+                style={[styles.btn, styles.undoBtn]}
+                onPress={handleUndo}
+              >
+                <Ionicons name="arrow-undo" size={18} color="#fff" />
+                <ThemedText style={styles.btnTextWhite}>Geri Al</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.btn, styles.saveBtn, saving && styles.disabled]}
+                disabled={saving}
+                onPress={handleSave}
+              >
+                <Ionicons name="save" size={18} color="#fff" />
+                <ThemedText style={styles.btnTextWhite}>
+                  {saving ? "Kaydediliyor..." : "Güncelle"}
+                </ThemedText>
+              </TouchableOpacity>
+            </>
+          )}
 
           <TouchableOpacity
             style={[
               styles.btn,
-              { backgroundColor: tintColor },
-              loading && { opacity: 0.5 },
+              styles.downloadBtn,
+              loading && styles.disabled,
+              !hasChanges && { flex: 1 },
             ]}
             disabled={loading}
             onPress={handleDownload}
           >
-            <ThemedText style={styles.btnText}>
+            <Ionicons name="download" size={18} color="#fff" />
+            <ThemedText style={styles.btnTextWhite}>
               {loading ? "Oluşturuluyor..." : "İndir"}
             </ThemedText>
           </TouchableOpacity>
-        </ThemedView>
+        </View>
 
         <TouchableOpacity
-          style={[styles.deleteBtn, deleting && { opacity: 0.5 }]}
+          style={[styles.deleteBtn, deleting && styles.disabled]}
           disabled={deleting}
           onPress={handleDelete}
         >
+          <Ionicons name="trash" size={18} color="#fff" />
           <ThemedText style={styles.deleteBtnText}>
             {deleting ? "Siliniyor..." : "Projeyi Sil"}
           </ThemedText>
@@ -428,72 +685,134 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scrollContent: { padding: 20 },
-  header: { marginTop: 20, marginBottom: 10 },
+  header: { marginTop: 20, marginBottom: 10, color: AppColors.primary },
   input: {
     borderWidth: 1,
-    padding: 12,
-    marginVertical: 5,
-    borderRadius: 8,
+    padding: 14,
+    marginVertical: 6,
+    borderRadius: 12,
     fontSize: 16,
   },
   daySection: {
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 8,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#e0e0e0",
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  fieldContainer: {
+    marginBottom: 10,
+  },
+  fieldLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  fieldDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  fieldLabelText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   textArea: {
     borderWidth: 1,
     padding: 12,
-    marginVertical: 5,
-    borderRadius: 8,
-    fontSize: 16,
-    height: 80,
+    borderRadius: 10,
+    fontSize: 15,
+    minHeight: 80,
     textAlignVertical: "top",
-    width: "100%",
   },
   btn: {
-    padding: 15,
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 12,
     flex: 1,
+    gap: 6,
   },
   buttonRow: {
     flexDirection: "row",
     gap: 10,
     marginTop: 30,
   },
-  saveBtn: {
-    backgroundColor: "#4CAF50",
+  undoBtn: {
+    backgroundColor: AppColors.warning,
   },
-  btnText: {
-    color: "black",
-    textAlign: "center",
+  saveBtn: {
+    backgroundColor: AppColors.success,
+  },
+  downloadBtn: {
+    backgroundColor: AppColors.primary,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  btnTextWhite: {
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 15,
   },
   deleteBtn: {
-    padding: 15,
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 12,
     marginTop: 15,
     marginBottom: 50,
-    backgroundColor: "#f44336",
+    backgroundColor: AppColors.error,
+    gap: 6,
   },
   deleteBtnText: {
-    color: "white",
-    textAlign: "center",
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 15,
   },
   copyButtonsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#eee",
+  },
+  copyModeSelector: {
+    flexDirection: "row",
+    marginBottom: 10,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: AppColors.primary,
+  },
+  copyModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  copyModeBtnActive: {
+    backgroundColor: AppColors.primary,
+  },
+  copyModeBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: AppColors.primary,
+  },
+  copyModeBtnTextActive: {
+    color: "#fff",
+  },
+  copyDaysRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
   },
   copyLabel: {
     fontSize: 12,
@@ -501,13 +820,20 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   copyBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
   copyBtnText: {
-    fontSize: 11,
-    color: "#333",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  copyAllBtn: {
+    backgroundColor: AppColors.primary,
+  },
+  copyAllBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
   },
 });

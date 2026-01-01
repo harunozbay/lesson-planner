@@ -1,5 +1,5 @@
 import { PropsWithChildren, useState } from "react";
-import { LayoutChangeEvent, StyleSheet, TouchableOpacity } from "react-native";
+import { StyleSheet, TextStyle, TouchableOpacity } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,35 +15,34 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const ANIMATION_DURATION = 400;
 
+interface CollapsibleProps {
+  title: string;
+  titleStyle?: TextStyle;
+}
+
 export function Collapsible({
   children,
   title,
-}: PropsWithChildren & { title: string }) {
+  titleStyle,
+}: PropsWithChildren<CollapsibleProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
-  const [contentMeasuredHeight, setContentMeasuredHeight] = useState(0);
   const theme = useColorScheme() ?? "light";
   const rotation = useSharedValue(0);
   const height = useSharedValue(0);
   const opacity = useSharedValue(0);
 
-  const onContentLayout = (event: LayoutChangeEvent) => {
-    const measuredHeight = event.nativeEvent.layout.height;
-    if (measuredHeight > 0 && contentMeasuredHeight === 0) {
-      setContentMeasuredHeight(measuredHeight);
-    }
-  };
-
   const toggleOpen = () => {
     const willOpen = !isOpen;
 
     if (willOpen) {
+      // Açılırken: önce render et, sonra animasyon
       setShouldRender(true);
       setIsOpen(true);
     } else {
-      // Kapanış animasyonu sonrasında state'i güncelle
+      // Kapanırken: önce animasyon, sonra render kaldır
+      setIsOpen(false);
       setTimeout(() => {
-        setIsOpen(false);
         setShouldRender(false);
       }, ANIMATION_DURATION);
     }
@@ -53,7 +52,8 @@ export function Collapsible({
       easing: Easing.bezier(0.4, 0, 0.2, 1),
     });
 
-    height.value = withTiming(willOpen ? contentMeasuredHeight || 500 : 0, {
+    // Açıkken büyük bir maxHeight kullan, kapalıyken 0
+    height.value = withTiming(willOpen ? 2000 : 0, {
       duration: ANIMATION_DURATION,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
     });
@@ -70,7 +70,7 @@ export function Collapsible({
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    height: contentMeasuredHeight > 0 ? height.value : undefined,
+    maxHeight: height.value,
     overflow: "hidden" as const,
   }));
 
@@ -90,13 +90,12 @@ export function Collapsible({
           />
         </Animated.View>
 
-        <ThemedText type="defaultSemiBold">{title}</ThemedText>
+        <ThemedText type="defaultSemiBold" style={titleStyle}>
+          {title}
+        </ThemedText>
       </TouchableOpacity>
       {shouldRender && (
-        <Animated.View
-          style={[styles.content, contentStyle]}
-          onLayout={onContentLayout}
-        >
+        <Animated.View style={[styles.content, contentStyle]}>
           {children}
         </Animated.View>
       )}

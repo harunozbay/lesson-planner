@@ -1,16 +1,34 @@
+import { useAuth } from "@/contexts/auth-context";
 import { signIn } from "aws-amplify/auth";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import {
+  Image,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useThemeColor } from "@/hooks/use-theme-color";
 
+// Web için alert fonksiyonu
+const showAlert = (message: string) => {
+  if (Platform.OS === "web") {
+    window.alert(message);
+  } else {
+    alert(message);
+  }
+};
+
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { setAuthenticated } = useAuth();
 
   const textColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "icon");
@@ -20,12 +38,13 @@ export default function LoginScreen() {
       setLoading(true);
 
       await signIn({ username: email, password });
+      setAuthenticated(true);
 
       // Login başarılı → tabs ekranına yönlendiriyoruz
       router.replace("/");
     } catch (error) {
       console.log("Login error:", error);
-      alert((error as Error).message || "Giriş yapılamadı");
+      showAlert((error as Error).message || "Giriş yapılamadı");
     } finally {
       setLoading(false);
     }
@@ -33,9 +52,13 @@ export default function LoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>
-        Giriş Yap
-      </ThemedText>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("@/assets/images/haftaman-logo-2.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
 
       <TextInput
         style={[
@@ -85,6 +108,14 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  logo: {
+    width: 160,
+    height: 160,
+  },
   title: {
     marginBottom: 20,
     textAlign: "center",
